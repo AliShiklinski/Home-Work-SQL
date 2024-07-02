@@ -1,66 +1,99 @@
 
-CREATE TABLE Authors (
-    Id INT PRIMARY KEY,
-    Name VARCHAR(100) NOT NULL,
-    Surname VARCHAR(100) NOT NULL
-);
 
- CREATE TABLE Books (
-    Id INT PRIMARY KEY,
-    Name VARCHAR(100) NOT NULL,
-    AuthorId INT,
-    PageCount INT NOT NULL CHECK (PageCount > 0),
-    CostPrice DECIMAL(10, 2),
-    SalePrice DECIMAL(10, 2),
-    FOREIGN KEY (AuthorId) REFERENCES Authors(Id)
-);
 
-CREATE TABLE Tags (
-    Id INT PRIMARY KEY,
-    Name VARCHAR(100) NOT NULL
-);
+CREATE VIEW vw_Academies AS
+SELECT *
+FROM Academy;
 
-CREATE TABLE BooksTags (
-    BookId INT,
-    TagId INT,
-    PRIMARY KEY (BookId, TagId),
-    FOREIGN KEY (BookId) REFERENCES Books(Id),
-    FOREIGN KEY (TagId) REFERENCES Tags(Id)
-);
-INSERT INTO Authors (Id, Name, Surname) VALUES
-(1, 'Ceyn', 'Ostin'),
-(2, 'Lev', 'Tolstoy');
 
-INSERT INTO Books (Id, Name, AuthorId, PageCount, CostPrice, SalePrice) VALUES
-(1, 'Book One', 1, 300, 15.00, 20.00),
-(2, 'Book Two', 2, 150, 10.00, 15.00);
+CREATE VIEW vw_Groups AS
+SELECT *
+FROM Groups
+WHERE IsDeleted = 0; 
 
-INSERT INTO Tags (Id, Name) VALUES
-(1, 'BestSeller'),
-(2, 'Featured'),
-(3, 'New');
 
-INSERT INTO BooksTags (BookId, TagId) VALUES
-(1, 1),
-(1, 2),
-(2, 3);
+CREATE VIEW vw_Students AS
+SELECT *
+FROM Students;
 
-CREATE VIEW BookDetails 
-SELECT 
-    B.Id,
-    CONCAT(A.Name, ' ', A.Surname) AS AuthorFullName,
-    B.Name AS BookName,
-    B.SalePrice AS BookPrice,
-    B.PageCount,
-    T.Name AS TagName
-FROM 
-    Books B
-JOIN 
-    Authors A ON B.AuthorId = A.Id
-JOIN 
-    BooksTags BT ON B.Id = BT.BookId
-JOIN 
-    Tags T ON BT.TagId = T.Id;
+CREATE PROCEDURE GetGroupByName
+    @GroupName NVARCHAR(100)
+AS
+BEGIN
+    SELECT *
+    FROM Groups
+    WHERE Name = @GroupName
+      AND IsDeleted = 0; 
+END;
 
-	SELECT * FROM BookDetails;
+CREATE PROCEDURE GetStudentsOlderThanAge
+    @Age INT
+AS
+BEGIN
+    SELECT *
+    FROM Students
+    WHERE Age > @Age;
+END;
 
+
+CREATE PROCEDURE GetStudentsYoungerThanAge
+    @Age INT
+AS
+BEGIN
+    SELECT *
+    FROM Students
+    WHERE Age < @Age;
+END;
+
+
+CREATE TRIGGER trg_Students_Delete
+ON Students
+AFTER DELETE
+AS
+BEGIN
+    INSERT INTO DeletedStudents (Id, Name, Surname, GroupId)
+    SELECT Id, Name, Surname, GroupId
+    FROM deleted;
+END;
+
+CREATE TRIGGER trg_Groups_Delete
+ON Groups
+INSTEAD OF DELETE
+AS
+BEGIN
+    UPDATE Groups
+    SET IsDeleted = 1
+    WHERE Id IN (SELECT Id FROM deleted);
+END;
+
+
+CREATE TRIGGER trg_Students_Age_Update
+ON Students
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    UPDATE Students
+    SET Adulthood = CASE
+                        WHEN Age >= 18 THEN 1
+                        ELSE 0
+                    END
+    WHERE Id IN (SELECT Id FROM inserted);
+END;
+
+
+CREATE FUNCTION GetTelebersByGroupId
+    (@GroupId INT)
+RETURNS TABLE
+AS
+RETURN
+    (SELECT *
+     FROM Students
+     WHERE GroupId = @GroupId);
+CREATE FUNCTION GetGroupsByAcademyId
+    (@AcademyId INT)
+RETURNS TABLE
+AS
+RETURN
+    (SELECT *
+     FROM Groups
+     WHERE AcademyId = @AcademyId);
